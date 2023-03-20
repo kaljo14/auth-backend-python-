@@ -1,0 +1,445 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "description": "Auth Project",
+    "version": "1.0.0",
+    "title": "auth-backend-python",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local development server"
+    }
+  ],
+ "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "client_number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "egn_hash": {
+            "type": "string"
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "address": {
+            "type": "string"
+          },
+          "meter_readings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Meter"
+            }
+          }
+        }
+      },
+      "Meter": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meter_number": {
+            "type": "string"
+          },
+          "address_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "installation_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "readings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reading"
+            }
+          }
+        }
+      },
+      "Reading": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meter_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reading_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "reading_value": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    }
+  },
+    "paths": {
+    "/": {
+      "get": {
+        "description": "Returns a simple greeting message",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/plain": {
+                "example": "Hello, world!"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/register": {
+      "post": {
+        "description": "Registers a new user with their client number, name, email, egn hash, and addresses.",
+        "requestBody": {
+          "description": "JSON object containing user details",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_number": {
+                    "type": "string",
+                    "description": "The client number of the user"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the user"
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "The email address of the user"
+                  },
+                  "egn_hash": {
+                    "type": "string",
+                    "description": "The hashed EGN of the user"
+                  },
+                  "addresses": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "address": {
+                          "type": "string",
+                          "description": "The address of the user"
+                        }
+                      },
+                      "required": [
+                        "address"
+                      ]
+                    },
+                    "description": "The addresses of the user"
+                  }
+                },
+                "required": [
+                  "client_number",
+                  "name",
+                  "email",
+                  "egn_hash",
+                  "addresses"
+                ]
+              },
+              "example": {
+                "client_number": "1234",
+                "name": "Ivan Ivanov",
+                "email": "ivan.ivan@test.com",
+                "egn_hash": "990908674",
+                "addresses": [
+                  {
+                    "address": "123 Main St."
+                  },
+                  {
+                    "address": "456 Elm St."
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully"
+          },
+          "400": {
+            "description": "Missing required information or email/egn already exists"
+          }
+        }
+      }
+    },
+     "/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Logs in a user and returns an access token.",
+        "requestBody": {
+          "description": "Login credentials",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully logged in.",
+            "headers": {
+              "access_token": {
+                "description": "JWT access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    
+    },
+     "/api/user/addresses": {
+    "get": {
+      "description": "Returns the user's addresses.",
+      "security": [
+        {
+          "JWTAuth": []
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Returns the user's addresses.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The user's name."
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "The user's email."
+                  },
+                  "addresses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "The user's address."
+                    },
+                    "description": "The user's addresses."
+                  }
+                },
+                "required": [
+                  "name",
+                  "email",
+                  "addresses"
+                ]
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Unauthorized."
+        }
+      }
+    }
+    },"/api/users/total": {
+  "get": {
+    "tags": [
+      "Users"
+    ],
+    "summary": "Get all users info",
+    "description": "Returns all the information for a specific user, including their addresses, meter readings, and readings.",
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Successful operation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the user."
+                },
+                "email": {
+                  "type": "string",
+                  "description": "The email address of the user."
+                },
+                "created_at": {
+                  "type": "string",
+                  "description": "The date and time the user was created."
+                },
+                "updated_at": {
+                  "type": "string",
+                  "description": "The date and time the user was last updated."
+                },
+                "client_number": {
+                  "type": "integer",
+                  "description": "The client number of the user."
+                },
+                "addresses": {
+                  "type": "array",
+                  "description": "An array of addresses associated with the user.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "description": "The ID of the address."
+                      },
+                      "user_id": {
+                        "type": "integer",
+                        "description": "The ID of the user associated with the address."
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The address of the user."
+                      }
+                    }
+                  }
+                },
+                "meter_readings": {
+                  "type": "array",
+                  "description": "An array of meter readings associated with the user.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "description": "The ID of the meter reading."
+                      },
+                      "meter_number": {
+                        "type": "string",
+                        "description": "The meter number associated with the reading."
+                      },
+                      "address_id": {
+                        "type": "integer",
+                        "description": "The ID of the address associated with the reading."
+                      },
+                      "installation_date": {
+                        "type": "string",
+                        "description": "The date the meter was installed."
+                      }
+                    }
+                  }
+                },
+                "readings": {
+                  "type": "array",
+                  "description": "An array of readings associated with the user.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "description": "The ID of the reading."
+                      },
+                      "meter_id": {
+                        "type": "integer",
+                        "description": "The ID of the meter associated with the reading."
+                      },
+                      "reading_date": {
+                        "type": "string",
+                        "description": "The date the reading was taken."
+                      },
+                      "reading_value": {
+                        "type": "string",
+                        "description": "The value of the reading."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+    
+
+}}
+  
+
