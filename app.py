@@ -1,10 +1,12 @@
 from datetime import datetime
+import os
+import uuid
 from flask import Flask, jsonify, make_response, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
 from flask_cors import CORS
-from models import db, bcrypt, User, Address, Meter, Reading
+from models import Alert, db, bcrypt, User, Address, Meter, Reading
 from flask_swagger_ui import get_swaggerui_blueprint
 
 
@@ -13,9 +15,10 @@ app = Flask(__name__)
 cors = CORS(app, resources={r"/*": {"origins": "*"}},
             supports_credentials=True)
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:''@localhost/aut_python'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@192.168.99.245:5432/tester'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@192.168.99.245:5432/tester'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@192.168.99.245:5432/databse3'
 app.config['JWT_SECRET_KEY'] = 'your-secret-key-here'
-
+app.config['UPLOAD_FOLDER'] = './photos'  
 db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
@@ -119,33 +122,75 @@ def user_info_addresses():
 # test for the get all info route
 @app.route('/api/users/total', methods=['GET'])
 @jwt_required()
+def get_all_users_info():
+    client_number = get_jwt_identity()
+    user = User.query.filter_by(client_number=client_number).first()
+    user_dict = {
+        'name': user.name,
+        'email': user.email,
+        'egn_hash': user.egn_hash,
+        'created_at': user.created_at,
+        'updated_at': user.updated_at,
+        'client_number': user.client_number,
+        'addresses': []
+    }
+    for address in user.addresses:
+        address_dict = {
+            'id': address.id,
+            'user_id': address.user_id,
+            'address': address.address,
+            'meter_readings': []
+        }
+        for meter in address.meter_readings:
+            meter_dict = {
+                
+                'meter_number': meter.meter_number,
+                'address_id': meter.address_id,
+                'installation_date': meter.installation_date,
+                'readings': []
+            }
+            # for reading in meter.readings:
+            #     reading_dict = {
+            #         'id': reading.id,
+            #         'meter_id': reading.meter_id,
+            #         'reading_date': reading.reading_date,
+            #         'reading_value': reading.reading_value
+            #     }
+            #     meter_dict['readings'].append(reading_dict)
+            address_dict['meter_readings'].append(meter_dict)
+        user_dict['addresses'].append(address_dict)
+    return jsonify(user_dict)
 # def get_all_users_info():
 #     client_number = get_jwt_identity()
 #     user = User.query.filter_by(client_number=client_number).first()
 #     user_dict = {
 #         'name': user.name,
 #         'email': user.email,
-#         'egn_hash':user.egn_hash,
-#         'created_at':user.created_at,
-#         'updated_at':user.updated_at,
+
+#         'created_at': user.created_at,
+#         'updated_at': user.updated_at,
 #         'client_number': user.client_number,
-#         'addresses': []
+#         'addresses': [],
+#         'meter_readings': [],
+#         'readings': []
 #     }
 #     for address in user.addresses:
 #         address_dict = {
 #             'id': address.id,
 #             'user_id': address.user_id,
 #             'address': address.address,
-#             'meter_readings': []
+
 #         }
+#         user_dict['addresses'].append(address_dict)
 #         for meter in address.meter_readings:
 #             meter_dict = {
 #                 'id': meter.id,
 #                 'meter_number': meter.meter_number,
 #                 'address_id': meter.address_id,
 #                 'installation_date': meter.installation_date,
-#                 'readings': []
+
 #             }
+#             user_dict['meter_readings'].append(meter_dict)
 #             for reading in meter.readings:
 #                 reading_dict = {
 #                     'id': reading.id,
@@ -153,65 +198,72 @@ def user_info_addresses():
 #                     'reading_date': reading.reading_date,
 #                     'reading_value': reading.reading_value
 #                 }
-#                 meter_dict['readings'].append(reading_dict)
-#             address_dict['meter_readings'].append(meter_dict)
-#         user_dict['addresses'].append(address_dict)
+#                 user_dict['readings'].append(reading_dict)
+
 #     return jsonify(user_dict)
-def get_all_users_info():
-    client_number = get_jwt_identity()
-    user = User.query.filter_by(client_number=client_number).first()
-    user_dict = {
-        'name': user.name,
-        'email': user.email,
 
-        'created_at': user.created_at,
-        'updated_at': user.updated_at,
-        'client_number': user.client_number,
-        'addresses': [],
-        'meter_readings': [],
-        'readings': []
-    }
-    for address in user.addresses:
-        address_dict = {
-            'id': address.id,
-            'user_id': address.user_id,
-            'address': address.address,
 
-        }
-        user_dict['addresses'].append(address_dict)
-        for meter in address.meter_readings:
-            meter_dict = {
-                'id': meter.id,
-                'meter_number': meter.meter_number,
-                'address_id': meter.address_id,
-                'installation_date': meter.installation_date,
-
-            }
-            user_dict['meter_readings'].append(meter_dict)
-            for reading in meter.readings:
-                reading_dict = {
-                    'id': reading.id,
-                    'meter_id': reading.meter_id,
-                    'reading_date': reading.reading_date,
-                    'reading_value': reading.reading_value
-                }
-                user_dict['readings'].append(reading_dict)
-
-    return jsonify(user_dict)
-
+# @app.route('/api/user/addReadings', methods=['POST'])
+# def add_readings():
+#     data = request.get_json()
+#     readings = data['readings']
+#     for reading in readings:
+#         new_reading = Reading(meter_number=reading['meter_number'],
+#                               reading_date=datetime.now().date(),
+#                               reading_value=reading['readings'])
+#         db.session.add(new_reading)
+#     db.session.commit()
+#     return jsonify({'message': 'New reading added successfully.'}), 201
 
 @app.route('/api/user/addReadings', methods=['POST'])
 def add_readings():
     data = request.get_json()
-    readings = data['readings']
-    for reading in readings:
-        new_reading = Reading(meter_id=reading['meter_id'],
+    # if 'readings' not in data:
+    #    return jsonify({'message': 'No readings data provided.'}), 400
+    
+    for reading in data:
+       
+        new_reading = Reading(
+                              meter_number=reading['meter_number'],
                               reading_date=datetime.now().date(),
-                              reading_value=reading['reading_value'])
+                              reading_value=reading['readings'])
         db.session.add(new_reading)
-    db.session.commit()
+        db.session.commit()
     return jsonify({'message': 'New reading added successfully.'}), 201
 
+@app.route('/api/report-alert', methods=['POST'])
+def report_alert():
+    alert_data = request.form.to_dict()
+    photo = request.files['photo']
+    unique_filename = f"{uuid.uuid4().hex}.jpg"  # create a unique filename
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+    photo.save(filepath)
+    alert = Alert(
+        alert_description=alert_data['alert_description'],
+        alert_location_description=alert_data['alert_location_description'],
+        photo = filepath,
+        latitude=float(alert_data['latitude']),
+        longitude=float(alert_data['longitude'])
+    )
+    db.session.add(alert)
+    db.session.commit()
+    return jsonify({'message': 'Alert created successfully.'}), 201
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+# [
+#     {
+#         "address_id": 1,
+#         "installation_date": null,
+#         "meter_number": 11111,
+#         "readings": "1"
+#     },
+#     {
+#         "address_id": 1,
+#         "installation_date": null,
+#         "meter_number": 22222,
+#         "readings": "1"
+#     }
+# ]

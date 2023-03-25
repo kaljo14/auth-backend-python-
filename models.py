@@ -38,15 +38,24 @@ class Address(db.Model):
         self.address = address
 
 class Meter(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    meter_number = db.Column(db.String(20))
+    # id = db.Column(db.Integer, primary_key=True)
+    meter_number = db.Column(db.Integer, primary_key=True)
     address_id = db.Column(db.Integer, db.ForeignKey('address.id'), nullable=False)
     installation_date = db.Column(db.Date)
     readings = db.relationship('Reading', backref='meter')
 
 class Reading(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    meter_id = db.Column(db.Integer, db.ForeignKey('meter.id'), nullable=False)
+    meter_number = db.Column(db.Integer, db.ForeignKey('meter.meter_number'), nullable=False)
     reading_date = db.Column(db.Date)
     reading_value = db.Column(db.Float)
 
+class Alert(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    alert_description = db.Column(db.String(255))
+    alert_location_description = db.Column(db.String(255))
+    photo = db.Column(db.String(255))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+
+  
