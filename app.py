@@ -1,14 +1,24 @@
+from csv import reader
 from datetime import datetime
 import os
 import uuid
+import cv2
+import certifi
+import ssl
+import numpy as np
 from flask import Flask, jsonify, make_response, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
 from flask_cors import CORS
+import numpy
 from models import Alert, db, bcrypt, User, Address, Meter, Reading
 from flask_swagger_ui import get_swaggerui_blueprint
-
+import easyocr
+from deeplearning import OCR
+# import pytesseract
+# import textract
+from PIL import Image, ImageFilter, ImageOps
 
 app = Flask(__name__)
 # CORS(app, origins=["http://localhost:8081"])
@@ -16,9 +26,10 @@ cors = CORS(app, resources={r"/*": {"origins": "*"}},
             supports_credentials=True)
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:''@localhost/aut_python'
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@192.168.99.245:5432/tester'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@192.168.99.245:5432/databse3'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@192.168.99.245:5432/version02042023'
 app.config['JWT_SECRET_KEY'] = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = './photos'  
+app.config['UPLOAD_FOLDER_ALERTS'] = './photos'
+app.config['UPLOAD_FOLDER_METERS'] = './meter_photos'
 db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
@@ -143,10 +154,11 @@ def get_all_users_info():
         }
         for meter in address.meter_readings:
             meter_dict = {
-                
+
                 'meter_number': meter.meter_number,
                 'address_id': meter.address_id,
                 'installation_date': meter.installation_date,
+                'photo': meter.photo,
                 'readings': []
             }
             # for reading in meter.readings:
@@ -220,28 +232,29 @@ def add_readings():
     data = request.get_json()
     # if 'readings' not in data:
     #    return jsonify({'message': 'No readings data provided.'}), 400
-    
+
     for reading in data:
-       
+
         new_reading = Reading(
-                              meter_number=reading['meter_number'],
-                              reading_date=datetime.now().date(),
-                              reading_value=reading['readings'])
+            meter_number=reading['meter_number'],
+            reading_date=datetime.now().date(),
+            reading_value=reading['readings'])
         db.session.add(new_reading)
         db.session.commit()
     return jsonify({'message': 'New reading added successfully.'}), 201
+
 
 @app.route('/api/report-alert', methods=['POST'])
 def report_alert():
     alert_data = request.form.to_dict()
     photo = request.files['photo']
     unique_filename = f"{uuid.uuid4().hex}.jpg"  # create a unique filename
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER_ALERTS'], unique_filename)
     photo.save(filepath)
     alert = Alert(
         alert_description=alert_data['alert_description'],
         alert_location_description=alert_data['alert_location_description'],
-        photo = filepath,
+        photo=filepath,
         latitude=float(alert_data['latitude']),
         longitude=float(alert_data['longitude'])
     )
@@ -249,21 +262,105 @@ def report_alert():
     db.session.commit()
     return jsonify({'message': 'Alert created successfully.'}), 201
 
+reader = easyocr.Reader(['en'])
+
+
+@app.route('/ocr', methods=['POST'])
+def ocr():
+    # check if request contains a file
+ if 'file' not in request.files:
+    return jsonify({'error': 'no file provided'})
+
+ file = request.files['file']
+
+# check if file has an allowed extension
+ allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
+ if file.filename.split('.')[-1].lower() not in allowed_extensions:
+    return jsonify({'error': 'invalid file extension'})
+
+# read image from file
+ image = cv2.imdecode(numpy.frombuffer(
+    file.read(), numpy.uint8), cv2.IMREAD_UNCHANGED)
+
+# preprocess image
+ image = cv2.resize(image, None, fx=0.5, fy=0.5,
+                   interpolation=cv2.INTER_AREA)  # rescale image
+ gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # convert to grayscale
+ edges = cv2.Canny(image, 100, 200)
+ blur = cv2.GaussianBlur(gray, (5, 5), 0)  # apply Gaussian Blur
+ _, thresh = cv2.threshold(
+        blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # apply thresholding
+
+# read text from preprocessed image using EasyOCR
+ results = reader.readtext(edges)
+
+# extract text from results and concatenate into a string
+ text = ' '.join([result[1] for result in results])
+
+ return jsonify({'text': text})
+    # # check if request contains a file
+    # if 'file' not in request.files:
+    #     return jsonify({'error': 'no file provided'})
+
+    # file = request.files['file']
+
+    # # check if file has an allowed extension
+    # allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
+    # if file.filename.split('.')[-1].lower() not in allowed_extensions:
+    #     return jsonify({'error': 'invalid file extension'})
+
+    # # read text from preprocessed image using textract
+    # text = textract.process(file, method='tesseract', language='eng')
+
+    # # convert bytes to string
+    # text = text.decode('utf-8')
+
+    # return jsonify({'text': text})
+
+
+
+
+    # # check if request contains a file
+    # if 'file' not in request.files:
+    #     return jsonify({'error': 'no file provided'})
+
+    # file = request.files['file']
+
+    # # check if file has an allowed extension
+    # allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
+    # if file.filename.split('.')[-1].lower() not in allowed_extensions:
+    #     return jsonify({'error': 'invalid file extension'})
+
+    # # read image from file
+    # image = Image.open(file)
+
+    # # preprocess image
+    # # image = image.resize((int(image.width/2), int(image.height/2)),
+    # #                      resample=Image.LANCZOS)  # rescale image
+    # gray = image.convert('L')  # convert to grayscale
+    # # blur = gray.filter(ImageFilter.GaussianBlur(
+    # #     radius=5))  # apply Gaussian Blur
+    # # thresh = ImageOps.autocontrast(blur)  # apply automatic contrast adjustment
+
+    # # read text from preprocessed image using Tesseract OCR
+    # tess = pytesseract.image_to_string(gray)
+
+    # return jsonify({'text': tess})
+
+# Define an endpoint for your Flask API that will receive the image to be processed.
+@app.route('/detect_objects', methods=['POST'])
+def detect_objects():
+    alert_data = request.form.to_dict()
+    photo = request.files['photo_0']
+    unique_filename = f"{uuid.uuid4().hex}.jpg"  # create a unique filename
+    filepath = os.path.join(app.config['UPLOAD_FOLDER_METERS'], unique_filename)
+    photo.save(filepath)
+    print(filepath + unique_filename)
+    response = OCR(unique_filename,filepath)
+    return jsonify(response)
+   
+
+
 if __name__ == '__main__':
     app.run(debug=True)
 
-
-# [
-#     {
-#         "address_id": 1,
-#         "installation_date": null,
-#         "meter_number": 11111,
-#         "readings": "1"
-#     },
-#     {
-#         "address_id": 1,
-#         "installation_date": null,
-#         "meter_number": 22222,
-#         "readings": "1"
-#     }
-# ]

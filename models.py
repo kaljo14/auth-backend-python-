@@ -43,6 +43,7 @@ class Meter(db.Model):
     address_id = db.Column(db.Integer, db.ForeignKey('address.id'), nullable=False)
     installation_date = db.Column(db.Date)
     readings = db.relationship('Reading', backref='meter')
+    photo = db.Column(db.String(255))
 
 class Reading(db.Model):
     id = db.Column(db.Integer, primary_key=True)
